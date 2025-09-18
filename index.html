@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>JSoft Forum (Online)</title>
+<style>
+  body{font-family:Arial,system-ui;max-width:950px;margin:14px auto;padding:12px;background:#f6f7fb;color:#111}
+  body.dark{background:#091015;color:#e8eef6}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  h1{margin:0;font-size:1.25rem}
+  .panel{background:rgba(255,255,255,0.95);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 0 rgba(0,0,0,.06)}
+  body.dark .panel{background:#0f1720}
+  input,textarea,select,button{font:inherit}
+  input,select,textarea{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #cfcfcf;background:transparent;color:inherit}
+  textarea{min-height:80px;resize:vertical}
+  .row{display:flex;gap:8px}
+  .small{width:160px}
+  .post{padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.06);margin:10px 0;background:inherit}
+  .post-header{display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px}
+  .muted{color:gray;font-size:.85rem}
+  .reply{margin-left:18px;margin-top:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,0.03)}
+  .reply-input{display:flex;gap:8px;margin-top:8px}
+  img.post-img{max-width:100%;border-radius:6px;margin-top:6px}
+  .btn{background:#0b63d6;color:#fff;padding:8px 10px;border-radius:6px;border:0}
+  .btn-danger{background:#d32f2f}
+  .smallbtn{padding:6px 8px;border-radius:6px;border:0;background:#eee}
+  .blurred{filter:blur(6px)}
+  .inline{display:inline-block}
+  @media(min-width:800px){ .row > *{flex:1} .small{width:220px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>JSoft Forum (Online)</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="darkToggle" class="smallbtn">Dark</button>
+    <span id="who" class="muted">Not logged in</span>
+  </div>
+</header>
+
+<!-- AUTH -->
+<div id="authPanel" class="panel">
+  <strong>Sign up / Login (username + password)</strong>
+  <div style="margin-top:8px">
+    <input id="authUser" placeholder="Username (no spaces)" />
+    <input id="authPass" type="password" placeholder="Password" />
+    <div class="row" style="margin-top:6px">
+      <button id="signupBtn" class="btn">Sign up</button>
+      <button id="loginBtn" class="btn">Log in</button>
+      <button id="signoutBtn" class="smallbtn" style="display:none">Sign out</button>
+    </div>
+    <div class="muted" style="margin-top:8px">Accounts are stored in Firebase Auth (we use a username → fake-email trick). No real email required.</div>
+  </div>
+</div>
+
+<!-- FORUM -->
+<div id="forum" class="panel" style="display:none">
+  <div style="display:flex;gap:8px;align-items:flex-start">
+    <select id="category" class="small">
+      <option>Gaming</option><option>School News</option><option>Math</option>
+      <option>Programming</option><option>Other</option>
+    </select>
+    <textarea id="message" placeholder="Write a post..."></textarea>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+    <input id="imageInput" type="file" accept="image/*" />
+    <button id="postBtn" class="btn">Post</button>
+  </div>
+  <h3 style="margin-top:12px">Posts</h3>
+  <div id="posts"></div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+<script>
+/* ====== CONFIG - Replace this with your project's config (Firebase console -> Project settings -> Your apps -> Web app) ====== */
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME.firebaseapp.com",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME.appspot.com",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+/* =================================================================================== */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+// banned words (one-per-line)
+const bannedRaw = `
+badword1
+badword2
+slur1
+slur2
+`;
+const banned = bannedRaw.split('\n').map(s=>s.trim()).filter(Boolean);
+
+// helpers
+const $ = id => document.getElementById(id);
+const escapeHtml = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+function containsBanned(text){
+  const t = (text||'').toLowerCase();
+  for(const w of banned){
+    if(!w) continue;
+    // substring match; change to word-boundary if you prefer
+    if(t.includes(w.toLowerCase())) return true;
+  }
+  return false;
+}
+function renderMessageHtml(text){
+  if(containsBanned(text)) return `<span class="blurred">${escapeHtml(text)}</span>`;
+  return `<span>${escapeHtml(text)}</span>`;
+}
+
+// UI toggles
+$('darkToggle').onclick = ()=>document.body.classList.toggle('dark');
+
+// AUTH behavior
+auth.onAuthStateChanged(user => {
+  if(user){
+    // user.displayName should be username
+    const username = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
+    $('who').textContent = 'Signed in: ' + username;
+    $('authPanel').style.display = 'none';
+    $('forum').style.display = 'block';
+    $('signoutBtn').style.display = 'inline-block';
+  } else {
+    $('who').textContent = 'Not logged in';
+    $('authPanel').style.display = '';
+    $('forum').style.display = 'none';
+    $('signoutBtn').style.display = 'none';
+  }
+});
+
+// Sign up / Login (we use fake email: username@jsoft.local)
+$('signupBtn').onclick = async ()=>{
+  const username = $('authUser').value.trim();
+  const pass = $('authPass').value;
+  if(!username || !pass) return alert('username and password required');
+  if(/\s/.test(username)) return alert('no spaces allowed in username');
+
+  const fakeEmail = username + '@jsoft.local';
+  try{
+    const cred = await auth.createUserWithEmailAndPassword(fakeEmail, pass);
+    await cred.user.updateProfile({displayName: username});
+    // create a mapping doc (optional)
+    await db.collection('users').doc(cred.user.uid).set({ username, created: firebase.firestore.FieldValue.serverTimestamp() });
+    alert('Signed up and logged in as ' + username);
+  }catch(err){
+    if(err.code === 'auth/email-already-in-use') alert('Username taken');
+    else alert(err.message);
+  }
+};
+
+$('loginBtn').onclick = async ()=>{
+  const username = $('authUser').value.trim();
+  const pass = $('authPass').value;
+  if(!username || !pass) return alert('username and password required');
+  const fakeEmail = username + '@jsoft.local';
+  try{
+    await auth.signInWithEmailAndPassword(fakeEmail, pass);
+  }catch(err){
+    alert(err.message);
+  }
+};
+
+$('signoutBtn').onclick = ()=> auth.signOut();
+
+// Posting
+$('postBtn').onclick = async ()=>{
+  const user = auth.currentUser;
+  if(!user) return alert('log in first');
+  const txt = $('message').value.trim();
+  if(!txt) return alert('message required');
+  const category = $('category').value;
+  const file = $('imageInput').files[0];
+
+  const author = user.displayName || (user.email && user.email.split('@')[0]);
+
+  if(file){
+    if(!file.type.startsWith('image/')) return alert('only images allowed');
+    const path = 'images/' + Date.now() + '_' + file.name;
+    const ref = storage.ref(path);
+    try{
+      await ref.put(file);
+      const url = await ref.getDownloadURL();
+      await savePost(author, user.uid, txt, category, url);
+    }catch(err){ console.error(err); alert('upload error: '+err.message); }
+  } else {
+    await savePost(author, user.uid, txt, category, null);
+  }
+  $('message').value = '';
+  $('imageInput').value = '';
+};
+
+async function savePost(username, uid, message, category, imageUrl){
+  await db.collection('posts').add({
+    user: username,
+    uid,
+    message,
+    category,
+    imageUrl: imageUrl||null,
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    replies: []
+  });
+}
+
+// Render posts for everyone (real-time)
+db.collection('posts').orderBy('timestamp','desc').onSnapshot(snap=>{
+  const out = $('posts'); out.innerHTML = '';
+  snap.forEach(doc=>{
+    const p = doc.data(); const id = doc.id;
+    const postEl = document.createElement('div'); postEl.className='post';
+    const timeStr = p.timestamp && p.timestamp.toDate ? p.timestamp.toDate().toLocaleString() : '';
+    postEl.innerHTML = `<div class="post-header"><div>${escapeHtml(p.user)} <span class="muted">[${escapeHtml(p.category)}]</span></div><div class="muted">${timeStr}</div></div>
+      <div class="post-body">${renderMessageHtml(p.message)}</div>`;
+
+    if(p.imageUrl){
+      const img = document.createElement('img'); img.src = p.imageUrl; img.className='post-img'; postEl.appendChild(img);
+    }
+
+    // replies
+    const replies = p.replies || [];
+    for(const r of replies){
+      const rdiv = document.createElement('div'); rdiv.className='reply';
+      const rtime = r.timestamp && r.timestamp.toDate ? r.timestamp.toDate().toLocaleString() : '';
+      rdiv.innerHTML = `<b>${escapeHtml(r.user)}</b> <span class="muted">${rtime}</span><div>${renderMessageHtml(r.message)}</div>`;
+      postEl.appendChild(rdiv);
+    }
+
+    // reply input
+    const replyDiv = document.createElement('div'); replyDiv.className='reply-input';
+    const ri = document.createElement('input'); ri.placeholder='Write a reply...';
+    const rbtn = document.createElement('button'); rbtn.textContent='Reply'; rbtn.className='smallbtn';
+    rbtn.onclick = async ()=>{
+      const user = auth.currentUser;
+      if(!user) return alert('log in to reply');
+      const text = ri.value.trim(); if(!text) return;
+      await db.collection('posts').doc(id).update({
+        replies: firebase.firestore.FieldValue.arrayUnion({
+          user: user.displayName || user.email.split('@')[0],
+          uid: user.uid,
+          message: text,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        })
+      });
+      ri.value = '';
+    };
+    replyDiv.appendChild(ri); replyDiv.appendChild(rbtn); postEl.appendChild(replyDiv);
+
+    // delete (only author)
+    if(auth.currentUser && auth.currentUser.uid === p.uid){
+      const del = document.createElement('button'); del.className='btn-danger'; del.textContent='Delete';
+      del.style.marginTop='8px';
+      del.onclick = async ()=> {
+        if(!confirm('Delete post?')) return;
+        await db.collection('posts').doc(id).delete();
+      };
+      postEl.appendChild(del);
+    }
+
+    out.appendChild(postEl);
+  });
+});
+</script>
+</body>
+</html>
