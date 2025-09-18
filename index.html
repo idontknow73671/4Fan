@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
+<meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>JSoft Forum (Online)</title>
 <style>
-  body{font-family:Arial,system-ui;max-width:950px;margin:14px auto;padding:12px;background:#f6f7fb;color:#111}
-  body.dark{background:#091015;color:#e8eef6}
+  :root{--bg:#f6f7fb;--card:#fff;--text:#111;--muted:#7a7a7a}
+  body{font-family:Arial,system-ui;max-width:980px;margin:16px auto;padding:14px;background:var(--bg);color:var(--text)}
+  body.dark{--bg:#061017;--card:#0f1720;--text:#e6eef6;--muted:#94a3b8}
   header{display:flex;justify-content:space-between;align-items:center;gap:12px}
-  h1{margin:0;font-size:1.25rem}
-  .panel{background:rgba(255,255,255,0.95);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 0 rgba(0,0,0,.06)}
-  body.dark .panel{background:#0f1720}
+  h1{margin:0;font-size:1.2rem}
+  .panel{background:var(--card);padding:12px;border-radius:8px;margin-top:12px;box-shadow:0 1px 0 rgba(0,0,0,.04)}
   input,textarea,select,button{font:inherit}
   input,select,textarea{width:100%;padding:8px;margin:6px 0;border-radius:6px;border:1px solid #cfcfcf;background:transparent;color:inherit}
   textarea{min-height:80px;resize:vertical}
@@ -18,16 +18,15 @@
   .small{width:160px}
   .post{padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.06);margin:10px 0;background:inherit}
   .post-header{display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px}
-  .muted{color:gray;font-size:.85rem}
+  .muted{color:var(--muted);font-size:.85rem}
   .reply{margin-left:18px;margin-top:8px;padding:8px;border-radius:6px;background:rgba(0,0,0,0.03)}
   .reply-input{display:flex;gap:8px;margin-top:8px}
   img.post-img{max-width:100%;border-radius:6px;margin-top:6px}
   .btn{background:#0b63d6;color:#fff;padding:8px 10px;border-radius:6px;border:0}
-  .btn-danger{background:#d32f2f}
+  .btn-danger{background:#d32f2f;color:#fff;padding:8px 10px;border-radius:6px;border:0}
   .smallbtn{padding:6px 8px;border-radius:6px;border:0;background:#eee}
   .blurred{filter:blur(6px)}
-  .inline{display:inline-block}
-  @media(min-width:800px){ .row > *{flex:1} .small{width:220px} }
+  @media(min-width:900px){ .row > *{flex:1} .small{width:220px} }
 </style>
 </head>
 <body>
@@ -41,20 +40,20 @@
 
 <!-- AUTH -->
 <div id="authPanel" class="panel">
-  <strong>Sign up / Login (username + password)</strong>
+  <strong>Sign up / Log in — username + password</strong>
   <div style="margin-top:8px">
-    <input id="authUser" placeholder="Username (no spaces)" />
-    <input id="authPass" type="password" placeholder="Password" />
+    <input id="authUser" placeholder="Username (no spaces)"/>
+    <input id="authPass" type="password" placeholder="Password"/>
     <div class="row" style="margin-top:6px">
       <button id="signupBtn" class="btn">Sign up</button>
       <button id="loginBtn" class="btn">Log in</button>
       <button id="signoutBtn" class="smallbtn" style="display:none">Sign out</button>
     </div>
-    <div class="muted" style="margin-top:8px">Accounts are stored in Firebase Auth (we use a username → fake-email trick). No real email required.</div>
+    <div class="muted" style="margin-top:8px">We use Firebase Auth (username → fake email). No real email required.</div>
   </div>
 </div>
 
-<!-- FORUM -->
+<!-- Forum UI -->
 <div id="forum" class="panel" style="display:none">
   <div style="display:flex;gap:8px;align-items:flex-start">
     <select id="category" class="small">
@@ -64,37 +63,38 @@
     <textarea id="message" placeholder="Write a post..."></textarea>
   </div>
   <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-    <input id="imageInput" type="file" accept="image/*" />
+    <input id="imageInput" type="file" accept="image/*"/>
     <button id="postBtn" class="btn">Post</button>
   </div>
+
   <h3 style="margin-top:12px">Posts</h3>
   <div id="posts"></div>
 </div>
 
-<!-- Firebase SDKs -->
+<!-- Firebase compat SDKs (easier copy/paste) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
 <script>
-/* ====== CONFIG - Replace this with your project's config (Firebase console -> Project settings -> Your apps -> Web app) ====== */
+/* ====== REPLACE the firebaseConfig below with YOUR project config (Project Settings → SDK setup) ====== */
 const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME"
+  apiKey: "REPLACE_WITH_YOURS",
+  authDomain: "REPLACE_WITH_YOURS.firebaseapp.com",
+  projectId: "REPLACE_WITH_YOURS",
+  storageBucket: "REPLACE_WITH_YOURS.appspot.com",
+  messagingSenderId: "REPLACE_WITH_YOURS",
+  appId: "REPLACE_WITH_YOURS"
 };
-/* =================================================================================== */
+/* ================================================================================================ */
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-// banned words (one-per-line)
+/* ====== banned words (one per line) ====== */
 const bannedRaw = `
 badword1
 badword2
@@ -103,16 +103,12 @@ slur2
 `;
 const banned = bannedRaw.split('\n').map(s=>s.trim()).filter(Boolean);
 
-// helpers
+/* helpers */
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 function containsBanned(text){
   const t = (text||'').toLowerCase();
-  for(const w of banned){
-    if(!w) continue;
-    // substring match; change to word-boundary if you prefer
-    if(t.includes(w.toLowerCase())) return true;
-  }
+  for(const w of banned) if(w && t.includes(w.toLowerCase())) return true;
   return false;
 }
 function renderMessageHtml(text){
@@ -120,13 +116,45 @@ function renderMessageHtml(text){
   return `<span>${escapeHtml(text)}</span>`;
 }
 
-// UI toggles
-$('darkToggle').onclick = ()=>document.body.classList.toggle('dark');
+/* UI toggles */
+$('darkToggle').onclick = ()=> document.body.classList.toggle('dark');
 
-// AUTH behavior
-auth.onAuthStateChanged(user => {
+/* AUTH (fake-email trick) */
+$('signupBtn').onclick = async ()=>{
+  const username = $('authUser').value.trim();
+  const pass = $('authPass').value;
+  if(!username || !pass) return alert('username & password required');
+  if(/\s/.test(username)) return alert('no spaces allowed in username');
+  const fakeEmail = username + '@jsoft.local';
+  try{
+    const cred = await auth.createUserWithEmailAndPassword(fakeEmail, pass);
+    await cred.user.updateProfile({displayName: username});
+    // optional: create a Firestore user doc
+    await db.collection('users').doc(cred.user.uid).set({ username, created: firebase.firestore.FieldValue.serverTimestamp() });
+    alert('Signed up as ' + username);
+  }catch(err){
+    if(err.code === 'auth/email-already-in-use') alert('Username taken');
+    else alert(err.message);
+  }
+};
+
+$('loginBtn').onclick = async ()=>{
+  const username = $('authUser').value.trim();
+  const pass = $('authPass').value;
+  if(!username || !pass) return alert('username & password required');
+  const fakeEmail = username + '@jsoft.local';
+  try{
+    await auth.signInWithEmailAndPassword(fakeEmail, pass);
+  }catch(err){
+    alert(err.message);
+  }
+};
+
+$('signoutBtn').onclick = ()=> auth.signOut();
+
+/* react to auth changes */
+auth.onAuthStateChanged(user=>{
   if(user){
-    // user.displayName should be username
     const username = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
     $('who').textContent = 'Signed in: ' + username;
     $('authPanel').style.display = 'none';
@@ -140,49 +168,14 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-// Sign up / Login (we use fake email: username@jsoft.local)
-$('signupBtn').onclick = async ()=>{
-  const username = $('authUser').value.trim();
-  const pass = $('authPass').value;
-  if(!username || !pass) return alert('username and password required');
-  if(/\s/.test(username)) return alert('no spaces allowed in username');
-
-  const fakeEmail = username + '@jsoft.local';
-  try{
-    const cred = await auth.createUserWithEmailAndPassword(fakeEmail, pass);
-    await cred.user.updateProfile({displayName: username});
-    // create a mapping doc (optional)
-    await db.collection('users').doc(cred.user.uid).set({ username, created: firebase.firestore.FieldValue.serverTimestamp() });
-    alert('Signed up and logged in as ' + username);
-  }catch(err){
-    if(err.code === 'auth/email-already-in-use') alert('Username taken');
-    else alert(err.message);
-  }
-};
-
-$('loginBtn').onclick = async ()=>{
-  const username = $('authUser').value.trim();
-  const pass = $('authPass').value;
-  if(!username || !pass) return alert('username and password required');
-  const fakeEmail = username + '@jsoft.local';
-  try{
-    await auth.signInWithEmailAndPassword(fakeEmail, pass);
-  }catch(err){
-    alert(err.message);
-  }
-};
-
-$('signoutBtn').onclick = ()=> auth.signOut();
-
-// Posting
+/* Posting */
 $('postBtn').onclick = async ()=>{
   const user = auth.currentUser;
   if(!user) return alert('log in first');
-  const txt = $('message').value.trim();
-  if(!txt) return alert('message required');
+  const text = $('message').value.trim();
+  if(!text) return alert('message required');
   const category = $('category').value;
   const file = $('imageInput').files[0];
-
   const author = user.displayName || (user.email && user.email.split('@')[0]);
 
   if(file){
@@ -192,31 +185,35 @@ $('postBtn').onclick = async ()=>{
     try{
       await ref.put(file);
       const url = await ref.getDownloadURL();
-      await savePost(author, user.uid, txt, category, url);
-    }catch(err){ console.error(err); alert('upload error: '+err.message); }
+      await savePost(author, user.uid, text, category, url);
+    }catch(err){
+      console.error(err); alert('upload error: ' + err.message);
+    }
   } else {
-    await savePost(author, user.uid, txt, category, null);
+    await savePost(author, user.uid, text, category, null);
   }
+
   $('message').value = '';
   $('imageInput').value = '';
 };
 
+/* save post to Firestore */
 async function savePost(username, uid, message, category, imageUrl){
   await db.collection('posts').add({
     user: username,
     uid,
     message,
     category,
-    imageUrl: imageUrl||null,
+    imageUrl: imageUrl || null,
     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
     replies: []
   });
 }
 
-// Render posts for everyone (real-time)
-db.collection('posts').orderBy('timestamp','desc').onSnapshot(snap=>{
+/* realtime render posts */
+db.collection('posts').orderBy('timestamp','desc').onSnapshot(snapshot=>{
   const out = $('posts'); out.innerHTML = '';
-  snap.forEach(doc=>{
+  snapshot.forEach(doc=>{
     const p = doc.data(); const id = doc.id;
     const postEl = document.createElement('div'); postEl.className='post';
     const timeStr = p.timestamp && p.timestamp.toDate ? p.timestamp.toDate().toLocaleString() : '';
@@ -241,13 +238,13 @@ db.collection('posts').orderBy('timestamp','desc').onSnapshot(snap=>{
     const ri = document.createElement('input'); ri.placeholder='Write a reply...';
     const rbtn = document.createElement('button'); rbtn.textContent='Reply'; rbtn.className='smallbtn';
     rbtn.onclick = async ()=>{
-      const user = auth.currentUser;
-      if(!user) return alert('log in to reply');
+      const usr = auth.currentUser;
+      if(!usr) return alert('log in to reply');
       const text = ri.value.trim(); if(!text) return;
       await db.collection('posts').doc(id).update({
         replies: firebase.firestore.FieldValue.arrayUnion({
-          user: user.displayName || user.email.split('@')[0],
-          uid: user.uid,
+          user: usr.displayName || usr.email.split('@')[0],
+          uid: usr.uid,
           message: text,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         })
@@ -256,7 +253,7 @@ db.collection('posts').orderBy('timestamp','desc').onSnapshot(snap=>{
     };
     replyDiv.appendChild(ri); replyDiv.appendChild(rbtn); postEl.appendChild(replyDiv);
 
-    // delete (only author)
+    // delete if author
     if(auth.currentUser && auth.currentUser.uid === p.uid){
       const del = document.createElement('button'); del.className='btn-danger'; del.textContent='Delete';
       del.style.marginTop='8px';
@@ -270,6 +267,9 @@ db.collection('posts').orderBy('timestamp','desc').onSnapshot(snap=>{
     out.appendChild(postEl);
   });
 });
+
+/* quick error output to console for debugging (optional) */
+window.addEventListener('error', e=>console.error('JS ERROR', e.message, e.error));
 </script>
 </body>
 </html>
